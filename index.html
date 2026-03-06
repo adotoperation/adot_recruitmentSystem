@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADOT Card News | 강사 지원자 인사이트</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="loading-overlay"
+        style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 2000; display: flex; justify-content: center; align-items: center;">
+        <div
+            style="width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #007aff; border-radius: 50%; animation: spin 1s linear infinite;">
+        </div>
+    </div>
+    <style>
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+
+    <div class="container">
+        <header>
+            <h1>에이닷 신규 강사 지원 정보</h1>
+        </header>
+
+        <section class="search-container">
+            <input type="text" id="search-input" placeholder="지원자 이름 또는 키워드로 검색..." autocomplete="off">
+        </section>
+
+        <main id="app">
+            <div id="grid" class="grid">
+                <!-- Cards injected here -->
+            </div>
+
+            <div id="error-message" style="display: none;">
+                <!-- Error or Empty state injected here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Premium Modal -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-sidebar" style="padding: 40px; overflow-y: auto;">
+                <div id="modal-photo-container" class="card-photo-container"
+                    style="aspect-ratio: 1; margin-bottom: 30px; border-radius: 30px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);">
+                    <!-- Photo injected here -->
+                </div>
+
+                <h2 id="modal-name"
+                    style="font-size: 2.8rem; font-weight: 900; margin-bottom: 8px; letter-spacing: -0.05em; color: white;">
+                    지원자 성함
+                </h2>
+                <p id="modal-birth"
+                    style="font-size: 1.1rem; opacity: 0.9; font-weight: 600; margin-bottom: 30px; color: white;">생년월일
+                    (나이)</p>
+
+                <div class="modal-info-group" style="margin-bottom: 25px;">
+                    <span class="detail-label" style="color: rgba(255,255,255,0.7); font-size: 0.75rem;">지망 지점</span>
+                    <div id="modal-tags" style="display: flex; flex-direction: column; gap: 8px; margin-top: 8px;">
+                        <!-- Branch Tags here -->
+                    </div>
+                </div>
+
+                <div class="modal-info-group" style="margin-bottom: 20px;">
+                    <span class="detail-label" style="color: rgba(255,255,255,0.7); font-size: 0.75rem;">이메일</span>
+                    <p id="modal-email" style="color: white; font-weight: 600; font-size: 1rem; margin-top: 5px;">-</p>
+                </div>
+
+                <div class="modal-info-group" style="margin-bottom: 20px;">
+                    <span class="detail-label" style="color: rgba(255,255,255,0.7); font-size: 0.75rem;">거주지</span>
+                    <p id="modal-address"
+                        style="color: white; font-weight: 600; font-size: 1rem; margin-top: 5px; line-height: 1.4;">-
+                    </p>
+                </div>
+
+                <div class="modal-info-group">
+                    <span class="detail-label" style="color: rgba(255,255,255,0.7); font-size: 0.75rem;">병역사항</span>
+                    <p id="modal-military" style="color: white; font-weight: 600; font-size: 1rem; margin-top: 5px;">-
+                    </p>
+                </div>
+            </div>
+
+            <div class="modal-main" style="padding: 40px; background: #fafbfc; overflow-y: auto;">
+                <button id="close-modal" class="close-btn">&times;</button>
+
+                <div class="detail-section" style="margin-bottom: 40px;">
+                    <span class="detail-label"
+                        style="font-size: 0.9rem; color: var(--primary); font-weight: 800; border-bottom: 2px solid var(--primary); display: inline-block; padding-bottom: 5px; margin-bottom: 20px;">📋
+                        강사 상세 정보</span>
+                    <!-- You can add more detailed info here if needed -->
+                    <p style="color: var(--text-secondary); font-size: 1rem; line-height: 1.6;">위의 사이드바에서 지원자의 핵심 정보를
+                        확인하실 수 있으며, 아래에서 면접 일정을 관리할 수 있습니다.</p>
+                </div>
+
+                <div class="detail-section"
+                    style="background: #f8f9fb; padding: 30px; border-radius: 20px; border: 1px solid #edf2f7;">
+                    <span class="detail-label" style="color: #007aff;">📅 면접 일정 관리</span>
+                    <form id="schedule-form" style="margin-top: 20px;">
+                        <input type="text" id="schedule-input"
+                            style="width: 100%; padding: 18px; border-radius: 12px; border: 1px solid #d1d9e2; margin-bottom: 20px; font-size: 1rem;"
+                            placeholder="확정된 일정 입력 (예: 3/15 오후 3시)">
+                        <button type="submit" id="submit-schedule"
+                            style="width: 100%; background: #007aff; color: white; border: none; padding: 20px; border-radius: 12px; font-weight: 700; font-size: 1.1rem; cursor: pointer; transition: 0.3s;">업데이트
+                            하기</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
