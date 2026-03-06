@@ -1,0 +1,12 @@
+# Recruit App gitignore
+.gemini/
+.agent/
+.agents/
+brain/
+__pycache__/
+*.log
+credentials.json
+node_modules/
+.env
+.vscode/
+.idea/

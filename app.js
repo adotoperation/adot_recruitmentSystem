@@ -1,7 +1,13 @@
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oiPOeJBg9f0IADWTRJ1cLoi0yMAdlXb1FvugcvsiOI4/gviz/tq?tqx=out:csv&gid=44927970';
-let GAS_URL = localStorage.getItem('adot_gas_url') || '';
+const BRANCH_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oiPOeJBg9f0IADWTRJ1cLoi0yMAdlXb1FvugcvsiOI4/gviz/tq?tqx=out:csv&gid=836080731';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOSAZ09qjY4pSpHx4Xqswt1C9C-OLws2LlexldDAJiNXk0qGT441cQjRmp9CjGwvIqmA/exec';
 
-const grid = document.getElementById('grid');
+const gridPass = document.getElementById('grid-pass');
+const gridFinalized = document.getElementById('grid-finalized');
+const gridAll = document.getElementById('grid-all');
+const countPass = document.getElementById('count-pass');
+const countFinalized = document.getElementById('count-finalized');
+const countAll = document.getElementById('count-all');
 const loadingOverlay = document.getElementById('loading-overlay');
 const errorMessage = document.getElementById('error-message');
 const searchInput = document.getElementById('search-input');
@@ -10,11 +16,11 @@ const searchInput = document.getElementById('search-input');
 const modal = document.getElementById('modal-overlay');
 const closeModal = document.getElementById('close-modal');
 const scheduleForm = document.getElementById('schedule-form');
-const scheduleInput = document.getElementById('schedule-input');
 const submitScheduleBtn = document.getElementById('submit-schedule');
 
 let allApplicants = [];
 let currentApplicant = null;
+let uniqueBranches = [];
 
 // Fetch and render data
 async function init() {
@@ -23,6 +29,12 @@ async function init() {
         loadingOverlay.style.opacity = '1';
         loadingOverlay.style.display = 'flex';
         errorMessage.style.display = 'none';
+
+        const sessionData = JSON.parse(localStorage.getItem('recruit_session') || '{}');
+        const userDisplay = document.getElementById('user-branch-display');
+        if (userDisplay) {
+            userDisplay.innerText = sessionData.branch ? `${sessionData.branch} 계정` : '알 수 없는 사용자';
+        }
 
         const response = await fetch(SHEET_URL);
         if (!response.ok) {
@@ -33,6 +45,9 @@ async function init() {
         const data = await response.text();
         allApplicants = parseCSV(data);
         console.log('Successfully fetched', allApplicants.length, 'applicants.');
+
+        // Fetch master branch list
+        await fetchBranches();
 
         renderCards(allApplicants);
 
@@ -62,59 +77,129 @@ async function init() {
 
 // Robust CSV Parser (Handles quoted fields, commas, and multi-line content correctly)
 function parseCSV(csv) {
-    const lines = csv.split(/\r?\n/).filter(line => line.trim() !== '');
-    if (lines.length < 2) return [];
-
     const result = [];
+    let currentField = '';
+    let inQuotes = false;
+    let fields = [];
 
-    for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        const fields = [];
-        let currentField = '';
-        let inQuotes = false;
+    // Iterate through every character to handle quotes and newlines within fields
+    for (let i = 0; i < csv.length; i++) {
+        const char = csv[i];
+        const nextChar = csv[i + 1];
 
-        for (let j = 0; j < line.length; j++) {
-            const char = line[j];
-            if (char === '"') {
-                inQuotes = !inQuotes;
-            } else if (char === ',' && !inQuotes) {
-                fields.push(currentField.trim());
-                currentField = '';
+        if (char === '"') {
+            // Handle escaped quotes (double quotes "")
+            if (inQuotes && nextChar === '"') {
+                currentField += '"';
+                i++; // Skip next quote
             } else {
-                currentField += char;
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            fields.push(currentField.trim());
+            currentField = '';
+        } else if ((char === '\r' || char === '\n') && !inQuotes) {
+            // End of line
+            if (currentField || fields.length > 0) {
+                fields.push(currentField.trim());
+                if (fields.length >= 5) {
+                    result.push(processFields(fields));
+                }
+                fields = [];
+                currentField = '';
+            }
+            // Skip \n if we just handled \r
+            if (char === '\r' && nextChar === '\n') i++;
+        } else {
+            currentField += char;
+        }
+    }
+
+    // Push last field/row if exists
+    if (fields.length > 0 || currentField) {
+        fields.push(currentField.trim());
+        if (fields.length >= 5) result.push(processFields(fields));
+    }
+
+    // Skip header row
+    return result.slice(1);
+}
+
+// Helper to map fields to object (extracted for cleaner parseCSV)
+function processFields(fields) {
+    const rawDate = fields[0] || '';
+    const formattedDate = formatDate(rawDate);
+
+    return {
+        id: rawDate,
+        date: formattedDate,
+        name: fields[1] || '이름 없음',
+        birth: fields[2] || '정보 없음',
+        age: fields[3] || '',
+        photo: getDirectDriveUrl(fields[4] || ''),
+        branches: [
+            fields[5], // 1지망
+            fields[6], // 2지망
+            fields[7]  // 3지망
+        ].filter(b => b),
+        schedule: fields[19] || '', // Column T
+        interviewResult: fields[20] || '', // Column U
+        trainingStart: fields[21] || '', // Column V
+        degree: fields[9] || '',
+        school: fields[10] || '',
+        address: fields[11] || '-',
+        email: fields[12] || '-',
+        military: fields[13] || '-',
+        experience: fields[14] || '',
+        introduction: fields[15] || '',
+        strengths: fields[16] || '',
+        vision: fields[17] || '',
+        phone: fields[8] || '', // Column I
+        assignedBranch: (fields[18] || '').replace(/"/g, '').trim(), // Column S (Branch Name)
+        status: ((fields[18] || '').trim().length > 0) // Column S (If branch exists, status is true)
+    };
+}
+
+// Function to fetch authoritative branch names from the '지점명' sheet
+async function fetchBranches() {
+    try {
+        const response = await fetch(BRANCH_SHEET_URL);
+        if (!response.ok) throw new Error(`Branch fetch failed: ${response.status}`);
+
+        const csvText = await response.text();
+        const lines = csvText.split('\n');
+        const branches = new Set();
+
+        // Skip header lines - assume data starts around line 2 or where we find names
+        for (let i = 1; i < lines.length; i++) {
+            // Some CSV parsers leave trailing commas. Split by comma but respect quotes if needed, 
+            // though branch names usually don't have commas.
+            const fields = lines[i].split(',');
+            if (fields.length > 0) {
+                const name = fields[0].replace(/"/g, '').trim();
+                // Filter out empty rows or obvious headers
+                if (name && name !== '지점명' && name !== '원/분원') {
+                    branches.add(name);
+                }
             }
         }
-        fields.push(currentField.trim());
 
-        if (fields.length < 5) continue;
+        uniqueBranches = Array.from(branches);
+        console.log('Successfully fetched', uniqueBranches.length, 'branches.');
 
-        // Mapping: A:ID(0), B:Name(1), C:Birth(2), D:Age(3), E:Photo(4), F:B1(5), G:B2(6), H:B3(7), I:Schedule(8), J:Degree(9), K:School(10), L:Address(11), M:Email(12), N:Military(13)
-        const rawDate = fields[0] || '';
-        const formattedDate = formatDate(rawDate);
-
-        const obj = {
-            id: rawDate, // Column A still used as ID for updates
-            date: formattedDate,
-            name: fields[1] || '이름 없음',
-            birth: fields[2] || '정보 없음',
-            age: fields[3] || '',
-            photo: getDirectDriveUrl(fields[4] || ''),
-            branches: [
-                fields[5], // 1지망
-                fields[6], // 2지망
-                fields[7]  // 3지망
-            ].filter(b => b),
-            vision: '',
-            schedule: fields[8] || '',
-            degree: fields[9] || '',
-            school: fields[10] || '',
-            address: fields[11] || '-',
-            email: fields[12] || '-',
-            military: fields[13] || '-'
-        };
-        result.push(obj);
+        const select = document.getElementById('branch-select');
+        if (select) {
+            select.innerHTML = '<option value="">지점 선택 안함</option>' +
+                uniqueBranches.map(b => `<option value="${b}">${b}</option>`).join('');
+        }
+    } catch (error) {
+        console.error('Error fetching branches:', error);
+        // Fallback: If fetch fails, keep the dropdown empty or just with the default option
+        const select = document.getElementById('branch-select');
+        if (select) {
+            select.innerHTML = '<option value="">지점 선택 안함 (데이터 로드 실패)</option>';
+        }
     }
-    return result;
 }
 
 // Helper to format date string to YYYY.MM.DD
@@ -133,35 +218,88 @@ function formatDate(dateStr) {
     return dateStr;
 }
 
-// Fixed Drive URL Converter (Using lh3.googleusercontent.com which is more stable for <img> tags)
+// Fixed Drive URL Converter (Returns the Drive ID or original URL)
 function getDirectDriveUrl(url) {
-    if (!url) return '';
-    const idMatch = url.match(/id=([^&]+)/) || url.match(/\/d\/([^/]+)/);
+    if (!url || typeof url !== 'string') return '';
+
+    const trimmedUrl = url.trim();
+    // Handle Google Drive Link patterns
+    const idMatch = trimmedUrl.match(/id=([^&]+)/) ||
+        trimmedUrl.match(/\/d\/([^/]+)/) ||
+        trimmedUrl.match(/\/file\/d\/([^/]+)/);
+
     if (idMatch && idMatch[1]) {
-        return `https://lh3.googleusercontent.com/d/${idMatch[1]}`;
+        return idMatch[1].replace('/view', '').split(/[?#]/)[0];
     }
-    return url;
+
+    return trimmedUrl;
 }
 
 function renderCards(applicants) {
-    grid.innerHTML = '';
-    applicants.forEach((applicant, index) => {
+    const sessionData = JSON.parse(localStorage.getItem('recruit_session') || '{}');
+    const myBranch = sessionData.branch || '';
+    const isMaster = (myBranch === 'master');
+
+    gridPass.innerHTML = '';
+    gridFinalized.innerHTML = '';
+    gridAll.innerHTML = '';
+
+    const categories = {
+        pass: [],
+        finalized: [],
+        others: []
+    };
+
+    applicants.forEach(app => {
+        const isAssignedToMe = isMaster ? !!app.assignedBranch : (app.assignedBranch === myBranch);
+        
+        if (isAssignedToMe) {
+            if (app.interviewResult === '합합') {
+                categories.finalized.push(app);
+            } else {
+                categories.pass.push(app);
+            }
+        } else if (!app.assignedBranch) {
+            // ONLY candidates without an assigned branch yet appear in the general pool
+            categories.others.push(app);
+        }
+    });
+
+    countPass.innerText = categories.pass.length;
+    countFinalized.innerText = categories.finalized.length;
+    countAll.innerText = categories.others.length;
+
+    const createCard = (applicant, targetGrid, index) => {
         const card = document.createElement('div');
         card.className = 'card';
         card.style.animation = `cardAppear 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards ${index * 0.1}s`;
-        card.style.opacity = '0';
 
-        const branchTags = applicant.branches.map((b, i) => `<span class="tag branch-tag" style="background: rgba(0, 122, 255, 0.1); color: var(--primary); padding: 5px 12px; border-radius: 8px; font-size: 0.85rem; font-weight: 700;">${i + 1}지망: ${b}</span>`).join('');
+        let statusBadge = '';
+        if (applicant.interviewResult === '합합') {
+            statusBadge = `<div class="status-badge" style="background:#f0fff4; color:#276749; border: 1px solid #c6f6d5; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; position: absolute; top: 15px; right: 15px; z-index: 10;">면접 합격${isMaster && applicant.assignedBranch ? ` (${applicant.assignedBranch})` : ''}</div>`;
+        } else if (applicant.assignedBranch) {
+            const isMyAssigned = (applicant.assignedBranch === myBranch);
+            const badgeLabel = isMaster ? `서류 합격 (${applicant.assignedBranch})` : '서류 합격';
+            statusBadge = `<div class="status-badge" style="background:#ebf8ff; color:#2b6cb0; border: 1px solid #bee3f8; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; position: absolute; top: 15px; right: 15px; z-index: 10;">${badgeLabel}</div>`;
+        }
+
+        const branchTags = applicant.branches.map((b, i) => `<span class="tag branch-tag">${i + 1}지망: ${b}</span>`).join('');
 
         card.innerHTML = `
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <span style="font-size: 0.75rem; font-weight: 800; color: #999; letter-spacing: 0.05em;">${applicant.date} 접수</span>
-            </div>
+            ${statusBadge}
             <div class="card-branches">
                 ${branchTags}
             </div>
             <div class="card-photo-container">
-                ${applicant.photo ? `<img src="${applicant.photo}" class="card-photo" alt="${applicant.name}">` : `<div class="card-photo-placeholder">${applicant.name.charAt(0)}</div>`}
+                ${(function () {
+                if (!applicant.photo) return `<div class="card-photo-placeholder" style="font-size: 3.5rem;">${applicant.name.charAt(0)}</div>`;
+                const id = applicant.photo;
+                if (id.length < 100) {
+                    return `<img src="https://lh3.googleusercontent.com/d/${id}" class="card-photo" style="object-fit: cover; object-position: center 15%;" alt="${applicant.name}" loading="lazy"
+                            onerror="if(!this.dataset.retry){ this.dataset.retry='1'; this.src='https://docs.google.com/uc?export=view&id=${id}'; } else { this.onerror=null; this.parentElement.innerHTML='<div class=\'card-photo-placeholder\'>권한 없음</div>'; }">`;
+                }
+                return `<img src="${applicant.photo}" class="card-photo" style="object-fit: cover; object-position: center 15%;" alt="${applicant.name}" loading="lazy" onerror="this.onerror=null; this.src='https://via.placeholder.com/300?text=Error';">`;
+            })()}
             </div>
             <div class="card-info">
                 <div>
@@ -171,10 +309,10 @@ function renderCards(applicants) {
                            <span>${applicant.birth}</span>
                            ${applicant.age ? `<span class="card-age">(${applicant.age}세)</span>` : ''}
                        </div>
-                       ${(applicant.degree || applicant.school) ? `
-                       <div class="education-info" style="font-size: 0.85rem; color: var(--primary); opacity: 0.9; font-weight: 700;">
-                           ${applicant.degree}${applicant.degree && applicant.school ? ' · ' : ''}${applicant.school}
-                       </div>` : ''}
+                       <div style="font-size: 0.85rem; color: #666; font-weight: 500; margin-top: 8px; line-height: 1.4;">
+                           <div style="margin-bottom: 2px;">📍 ${applicant.address}</div>
+                           <div>🎓 ${applicant.degree || '-'} / ${applicant.school || '-'}</div>
+                       </div>
                    </div>
                 </div>
                 <div class="click-cue">
@@ -184,42 +322,85 @@ function renderCards(applicants) {
         `;
 
         card.onclick = () => openDetail(applicant);
-        grid.appendChild(card);
-    });
+        targetGrid.appendChild(card);
+    };
+
+    categories.pass.forEach((app, i) => createCard(app, gridPass, i));
+    categories.finalized.forEach((app, i) => createCard(app, gridFinalized, i));
+    categories.others.forEach((app, i) => createCard(app, gridAll, i));
+
+    // Show/hide section headers if empty for better UX
+    document.getElementById('section-pass').style.display = categories.pass.length ? 'block' : 'none';
+    document.getElementById('section-finalized').style.display = categories.finalized.length ? 'block' : 'none';
 }
 
 function openDetail(applicant) {
-    currentApplicant = applicant;
-    document.getElementById('modal-name').innerText = applicant.name;
-    document.getElementById('modal-birth').innerText = `${applicant.birth} ${applicant.age ? `(${applicant.age}세)` : ''}`;
+    try {
+        currentApplicant = applicant;
+        document.getElementById('modal-name').innerText = applicant.name;
+        document.getElementById('modal-birth').innerText = `${applicant.birth} ${applicant.age ? `(${applicant.age}세)` : ''}`;
 
-    // Sidebar Details
-    const photoContainer = document.getElementById('modal-photo-container');
-    photoContainer.innerHTML = applicant.photo
-        ? `<img src="${applicant.photo}" class="card-photo" style="width: 100%; height: 100%; object-fit: cover;" alt="${applicant.name}">`
-        : `<div class="card-photo-placeholder" style="font-size: 5rem; font-weight: 900; opacity: 0.1;">${applicant.name.charAt(0)}</div>`;
+        // Sidebar Details
+        const photoContainer = document.getElementById('modal-photo-container');
+        if (applicant.photo && applicant.photo.length < 100) {
+            const id = applicant.photo;
+            photoContainer.innerHTML = `<img src="https://lh3.googleusercontent.com/d/${id}" class="card-photo" style="width: 100%; height: 100%; object-fit: cover; object-position: top;" alt="${applicant.name}" 
+                onerror="if(!this.dataset.retry){ this.dataset.retry='1'; this.src='https://docs.google.com/uc?export=view&id=${id}'; } else { this.onerror=null; this.parentElement.innerHTML='<div class=\'card-photo-placeholder\' style=\'padding:20px; font-size:1rem; color:#e53e3e; font-weight:700;\'>사진 권한이 없습니다.<br>공유 설정을 확인하세요.</div>'; }">`;
+        } else if (applicant.photo) {
+            photoContainer.innerHTML = `<img src="${applicant.photo}" class="card-photo" style="width: 100%; height: 100%; object-fit: cover; object-position: top;" alt="${applicant.name}" onerror="this.onerror=null; this.src='https://via.placeholder.com/300?text=Error';">`;
+        } else {
+            photoContainer.innerHTML = `<div class="card-photo-placeholder" style="font-size: 5rem; font-weight: 900; opacity: 0.1;">${applicant.name.charAt(0)}</div>`;
+        }
 
-    document.getElementById('modal-email').innerText = applicant.email;
-    document.getElementById('modal-address').innerText = applicant.address;
-    document.getElementById('modal-military').innerText = applicant.military;
+        document.getElementById('modal-email').innerText = applicant.email;
+        document.getElementById('modal-address').innerText = applicant.address;
+        document.getElementById('modal-military').innerText = applicant.military;
 
-    const tagsContainer = document.getElementById('modal-tags');
-    tagsContainer.innerHTML = applicant.branches.map((b, i) => `
-        <span class="tag" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem; padding: 8px 14px; border-radius: 10px; font-weight: 700;">${i + 1}지망: ${b}</span>
-    `).join('');
+        const tagsContainer = document.getElementById('modal-tags');
+        tagsContainer.innerHTML = applicant.branches.map((b, i) => `
+            <span class="tag" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem; padding: 8px 14px; border-radius: 10px; font-weight: 700;">${i + 1}지망: ${b}</span>
+        `).join('');
 
-    scheduleInput.value = applicant.schedule || '';
+        // Main Details
+        document.getElementById('modal-degree-detail').innerText = applicant.degree || '-';
+        document.getElementById('modal-school-detail').innerText = applicant.school || '-';
+        document.getElementById('modal-experience').innerText = applicant.experience || '-';
+        document.getElementById('modal-introduction').innerText = applicant.introduction || '-';
+        document.getElementById('modal-strengths').innerText = applicant.strengths || '-';
+        document.getElementById('modal-vision').innerText = applicant.vision || '-';
+        document.getElementById('modal-phone').innerText = applicant.phone || '-';
 
-    modal.classList.add('active');
+        // Management states
+        document.getElementById('pass-checkbox').checked = applicant.status;
+        
+        const interviewInput = document.getElementById('interview-date');
+        const trainingInput = document.getElementById('training-date');
+        
+        if (interviewInput) interviewInput.value = applicant.schedule || '';
+        if (trainingInput) trainingInput.value = applicant.trainingStart || '';
+
+        // Interview Result radios
+        const resultRadios = document.getElementsByName('interview-result');
+        resultRadios.forEach(radio => {
+            radio.checked = (radio.value === applicant.interviewResult);
+        });
+
+        modal.classList.add('active');
+        document.body.classList.add('modal-open');
+    } catch (err) {
+        console.error('Error in openDetail:', err);
+    }
 }
 
 closeModal.onclick = () => {
     modal.classList.remove('active');
+    document.body.classList.remove('modal-open');
 };
 
 window.onclick = (event) => {
     if (event.target == modal) {
         modal.classList.remove('active');
+        document.body.classList.remove('modal-open');
     }
 };
 
@@ -227,50 +408,67 @@ window.onclick = (event) => {
 scheduleForm.onsubmit = async (e) => {
     e.preventDefault();
 
-    if (!GAS_URL) {
-        const promptUrl = prompt('데이터 전송을 위해 Google Apps Script 배포 URL을 입력해주세요 (브라우저에 저장됩니다):');
-        if (promptUrl) {
-            GAS_URL = promptUrl;
-            localStorage.setItem('adot_gas_url', GAS_URL);
-        } else {
-            return;
-        }
+    const interviewValue = document.getElementById('interview-date').value;
+    const trainingValue = document.getElementById('training-date').value;
+    const passStatus = document.getElementById('pass-checkbox').checked;
+    
+    const resultRadio = document.querySelector('input[name="interview-result"]:checked');
+    const interviewResult = resultRadio ? resultRadio.value : '';
+
+    // Validation 1: Interview schedule is REQUIRED if Document Passed
+    if (passStatus && !interviewValue) {
+        alert('서류 전형 합격 결정 시, 면접 일정을 반드시 입력해야 합니다.');
+        return;
     }
 
-    const scheduleValue = scheduleInput.value.trim();
-    if (!scheduleValue) return;
+    // Validation 2: Training date is REQUIRED if Interview Passed
+    if (interviewResult === '합합' && !trainingValue) {
+        alert('면접 합격 시, 집체 교육 시작일을 반드시 입력해야 합니다.');
+        return;
+    }
+    
+    // Get branch from session
+    const sessionData = JSON.parse(localStorage.getItem('recruit_session') || '{}');
+    const assignedBranch = passStatus ? (sessionData.branch || '') : '';
 
-    submitScheduleBtn.innerText = '업데이트 중...';
+    submitScheduleBtn.innerText = '저장 중...';
     submitScheduleBtn.disabled = true;
 
     try {
         const payload = {
-            id: currentApplicant.id, // Using ID now for update
-            interviewSchedule: scheduleValue
+            id: currentApplicant.id,
+            interviewSchedule: interviewValue,
+            trainingStart: trainingValue,
+            interviewResult: interviewResult,
+            status: passStatus,
+            assignedBranch: assignedBranch
         };
 
-        await fetch(GAS_URL, {
+        const response = await fetch(GAS_URL, {
             method: 'POST',
-            body: JSON.stringify(payload),
-            mode: 'no-cors'
+            body: JSON.stringify(payload)
         });
 
-        alert('일정이 성공적으로 저장되었습니다!');
-        modal.classList.remove('active');
+        const result = await response.json();
 
-        setTimeout(() => init(), 1500);
+        if (result.status === 'success') {
+            alert('정보가 성공적으로 저장되었습니다!');
+            modal.classList.remove('active');
+            setTimeout(() => init(), 1500);
+        } else {
+            alert('저장 실패: ' + result.message);
+        }
 
     } catch (error) {
-        console.error('Schedule update error:', error);
-        alert('일정 저장 중 오류가 발생했습니다.');
+        console.error('Update error:', error);
+        alert('저장 중 네트워크 오류가 발생했습니다.');
     } finally {
-        submitScheduleBtn.innerText = '시트 업데이트 하기';
+        submitScheduleBtn.innerText = '저장하기';
         submitScheduleBtn.disabled = false;
     }
 };
 
-// Search functionality (Focusing on Branch names)
-searchInput.placeholder = "지망 지점명으로 검색 (예: 강남, 서초)...";
+// Search functionality
 searchInput.addEventListener('input', (e) => {
     const term = e.target.value.toLowerCase().trim();
     if (!term) {
@@ -278,7 +476,11 @@ searchInput.addEventListener('input', (e) => {
         return;
     }
     const filtered = allApplicants.filter(app => {
-        return app.branches.some(b => b.toLowerCase().includes(term));
+        const branchMatch = app.branches.some(b => b.toLowerCase().includes(term)) || 
+                          (app.assignedBranch && app.assignedBranch.toLowerCase().includes(term));
+        return app.name.toLowerCase().includes(term) || 
+               app.phone.includes(term) ||
+               branchMatch;
     });
     renderCards(filtered);
 });
