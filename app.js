@@ -1,6 +1,6 @@
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oiPOeJBg9f0IADWTRJ1cLoi0yMAdlXb1FvugcvsiOI4/gviz/tq?tqx=out:csv&gid=44927970';
 const BRANCH_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1oiPOeJBg9f0IADWTRJ1cLoi0yMAdlXb1FvugcvsiOI4/gviz/tq?tqx=out:csv&gid=836080731';
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbyOSAZ09qjY4pSpHx4Xqswt1C9C-OLws2LlexldDAJiNXk0qGT441cQjRmp9CjGwvIqmA/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwL8xT-LzNROnOymPK9jrDPYFwQ7Fry_fAUrimfkLi0bQzl-b36fqLapDh4_R2C2M6jKw/exec';
 
 const gridPass = document.getElementById('grid-pass');
 const gridFinalized = document.getElementById('grid-finalized');
@@ -516,6 +516,8 @@ scheduleForm.onsubmit = async (e) => {
     try {
         const payload = {
             id: currentApplicant.id,
+            name: currentApplicant.name,
+            phone: currentApplicant.phone,
             interviewSchedule: interviewValue,
             trainingStart: trainingValue,
             interviewResult: interviewResult,
