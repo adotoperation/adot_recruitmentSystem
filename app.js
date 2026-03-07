@@ -22,6 +22,38 @@ let allApplicants = [];
 let currentApplicant = null;
 let uniqueBranches = [];
 
+/**
+ * Premium Cool-Toned Toast Notification
+ */
+function showToast(title, message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    
+    let icon = 'ℹ️';
+    if(type === 'success') icon = '✅';
+    if(type === 'warning') icon = '⚠️';
+    if(type === 'error') icon = '❌';
+
+    toast.innerHTML = `
+        <div class="toast-icon">${icon}</div>
+        <div class="toast-content">
+            <div class="toast-title">${title}</div>
+            <div class="toast-message">${message}</div>
+        </div>
+    `;
+
+    container.appendChild(toast);
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.add('removing');
+        setTimeout(() => toast.remove(), 400);
+    }, 4000);
+}
+
 // Fetch and render data
 async function init() {
     try {
@@ -491,22 +523,22 @@ scheduleForm.onsubmit = async (e) => {
 
     // Validation 1: Interview schedule is REQUIRED if Document Passed
     if (passStatus && !interviewValue) {
-        alert('서류 전형 합격 결정 시, 면접 일정을 반드시 입력해야 합니다.');
+        showToast('입력 확인', '서류 전형 합격 결정 시, 면접 일정을 반드시 입력해야 합니다.', 'warning');
         return;
     }
 
     // Validation 2: Training date is REQUIRED if Interview Passed
     if (interviewResult === '합합' && !trainingValue) {
-        alert('면접 합격 시, 집체 교육 시작일을 반드시 입력해야 합니다.');
+        showToast('입력 확인', '면접 합격 시, 집체 교육 시작일을 반드시 입력해야 합니다.', 'warning');
         return;
     }
-    
+        
     // Get branch from session
     const sessionData = JSON.parse(localStorage.getItem('recruit_session') || '{}');
     const assignedBranch = passStatus ? (sessionData.branch || '') : '';
 
     if (!currentApplicant || !currentApplicant.id) {
-        alert('지원자 정보가 올바르지 않습니다. 다시 시도해 주세요.');
+        showToast('오류', '지원자 정보가 올바르지 않습니다. 다시 시도해 주세요.', 'error');
         return;
     }
 
@@ -552,18 +584,18 @@ scheduleForm.onsubmit = async (e) => {
         }
 
         if (result.status === 'success') {
-            alert('정보가 성공적으로 저장되었습니다!');
+            showToast('저장 완료', '정보가 성공적으로 저장되었습니다!', 'success');
             modal.classList.remove('active');
             document.body.classList.remove('modal-open');
             // Increased delay to 3 seconds for better Google Sheets propagation
             setTimeout(() => init(), 3000);
         } else {
-            alert('저장 실패: ' + result.message);
+            showToast('저장 실패', result.message, 'error');
         }
 
     } catch (error) {
         console.error('Update error:', error);
-        alert(`저장 중 네트워크 오류가 발생했습니다.\n(상세: ${error.message})`);
+        showToast('네트워크 오류', `저장 중 오류가 발생했습니다. (${error.message})`, 'error');
     } finally {
         submitScheduleBtn.innerText = '저장하기';
         submitScheduleBtn.disabled = false;
