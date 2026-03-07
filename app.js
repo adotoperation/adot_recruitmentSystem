@@ -44,7 +44,11 @@ async function init() {
 
         const data = await response.text();
         allApplicants = parseCSV(data);
-        console.log('Successfully fetched', allApplicants.length, 'applicants.');
+        
+        // Sorting: newest (descending) based on ID/Date
+        allApplicants.sort((a, b) => b.id.localeCompare(a.id));
+        
+        console.log('Successfully fetched and sorted', allApplicants.length, 'applicants.');
 
         // Fetch master branch list
         await fetchBranches();
@@ -218,6 +222,26 @@ function formatDate(dateStr) {
     return dateStr;
 }
 
+// Helper to format date string for input fields (datetime-local and date)
+function formatForInput(dateStr, type) {
+    if (!dateStr) return '';
+    try {
+        const numbers = dateStr.match(/\d+/g);
+        if (numbers && numbers.length >= 3) {
+            const y = numbers[0];
+            const m = numbers[1].padStart(2, '0');
+            const d = numbers[2].padStart(2, '0');
+            if (type === 'datetime-local' && numbers.length >= 5) {
+                const hh = numbers[3].padStart(2, '0');
+                const mm = numbers[4].padStart(2, '0');
+                return `${y}-${m}-${d}T${hh}:${mm}`;
+            }
+            return `${y}-${m}-${d}`;
+        }
+    } catch (e) { }
+    return dateStr.replace(' ', 'T'); // Fallback: replace space with T for datetime-local
+}
+
 // Fixed Drive URL Converter (Returns the Drive ID or original URL)
 function getDirectDriveUrl(url) {
     if (!url || typeof url !== 'string') return '';
@@ -250,12 +274,19 @@ function renderCards(applicants) {
         others: []
     };
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     applicants.forEach(app => {
         const isAssignedToMe = isMaster ? !!app.assignedBranch : (app.assignedBranch === myBranch);
         
         if (isAssignedToMe) {
-            if (app.interviewResult === '합합') {
-                categories.finalized.push(app);
+            if (app.trainingStart) {
+                // Hide if training date is in the past
+                const trainingDate = new Date(app.trainingStart);
+                if (trainingDate >= today) {
+                    categories.finalized.push(app);
+                }
             } else {
                 categories.pass.push(app);
             }
@@ -275,20 +306,30 @@ function renderCards(applicants) {
         card.style.animation = `cardAppear 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards ${index * 0.1}s`;
 
         let statusBadge = '';
-        if (applicant.interviewResult === '합합') {
-            statusBadge = `<div class="status-badge" style="background:#f0fff4; color:#276749; border: 1px solid #c6f6d5; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; position: absolute; top: 15px; right: 15px; z-index: 10;">면접 합격${isMaster && applicant.assignedBranch ? ` (${applicant.assignedBranch})` : ''}</div>`;
+        if (applicant.trainingStart) {
+            statusBadge = `<div class="status-badge" style="background:#f0fff4; color:#276749; border: 1px solid #c6f6d5; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; position: absolute; top: 15px; right: 15px; z-index: 10;">집체교육 대기${isMaster && applicant.assignedBranch ? ` (${applicant.assignedBranch})` : ''}</div>`;
         } else if (applicant.assignedBranch) {
             const isMyAssigned = (applicant.assignedBranch === myBranch);
             const badgeLabel = isMaster ? `서류 합격 (${applicant.assignedBranch})` : '서류 합격';
             statusBadge = `<div class="status-badge" style="background:#ebf8ff; color:#2b6cb0; border: 1px solid #bee3f8; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; position: absolute; top: 15px; right: 15px; z-index: 10;">${badgeLabel}</div>`;
         }
 
-        const branchTags = applicant.branches.map((b, i) => `<span class="tag branch-tag">${i + 1}지망: ${b}</span>`).join('');
+        const row1Raw = applicant.branches.slice(0, 2);
+        const row2Raw = applicant.branches.slice(2, 3);
+        
+        const branchTagsRow1 = row1Raw.map((b, i) => `<span class="tag branch-tag">${i + 1}지망: ${b}</span>`).join('');
+        const branchTagsRow2 = row2Raw.map((b, i) => `<span class="tag branch-tag">3지망: ${b}</span>`).join('');
 
         card.innerHTML = `
-            ${statusBadge}
-            <div class="card-branches">
-                ${branchTags}
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                <div class="card-date-top" style="font-size: 0.75rem; font-weight: 800; color: #999;">
+                    접수: ${applicant.date}
+                </div>
+                ${statusBadge.replace('position: absolute; top: 15px; right: 15px;', 'position: relative; top: 0; right: 0;')}
+            </div>
+            <div class="card-branches" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px;">
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">${branchTagsRow1}</div>
+                ${branchTagsRow2 ? `<div style="display: flex; gap: 6px; flex-wrap: wrap;">${branchTagsRow2}</div>` : ''}
             </div>
             <div class="card-photo-container">
                 ${(function () {
@@ -371,19 +412,22 @@ function openDetail(applicant) {
         document.getElementById('modal-phone').innerText = applicant.phone || '-';
 
         // Management states
-        document.getElementById('pass-checkbox').checked = applicant.status;
+        const passCheckbox = document.getElementById('pass-checkbox');
+        passCheckbox.checked = applicant.status;
         
         const interviewInput = document.getElementById('interview-date');
         const trainingInput = document.getElementById('training-date');
-        
-        if (interviewInput) interviewInput.value = applicant.schedule || '';
-        if (trainingInput) trainingInput.value = applicant.trainingStart || '';
-
-        // Interview Result radios
         const resultRadios = document.getElementsByName('interview-result');
+        
+        if (interviewInput) interviewInput.value = formatForInput(applicant.schedule, 'datetime-local') || '';
+        if (trainingInput) trainingInput.value = formatForInput(applicant.trainingStart, 'date') || '';
+        
         resultRadios.forEach(radio => {
             radio.checked = (radio.value === applicant.interviewResult);
         });
+
+        // Initialize disabled states (don't clear existing data during initial open)
+        toggleInterviewFields(applicant.status, false);
 
         modal.classList.add('active');
         document.body.classList.add('modal-open');
@@ -391,6 +435,36 @@ function openDetail(applicant) {
         console.error('Error in openDetail:', err);
     }
 }
+
+// Helper to enable/disable fields based on Document Pass status
+function toggleInterviewFields(isPassed, shouldClear = true) {
+    const interviewInput = document.getElementById('interview-date');
+    const trainingInput = document.getElementById('training-date');
+    const resultRadios = document.getElementsByName('interview-result');
+    const sections = [interviewInput, trainingInput, ...resultRadios];
+    
+    sections.forEach(el => {
+        if (el) {
+            el.disabled = !isPassed;
+            el.style.opacity = isPassed ? '1' : '0.5';
+            el.style.cursor = isPassed ? 'pointer' : 'not-allowed';
+            if (!isPassed && shouldClear) {
+                if (el.type !== 'radio') el.value = '';
+                if (el.type === 'radio') el.checked = false;
+            }
+        }
+    });
+
+    const trainingSection = document.getElementById('training-section');
+    if (trainingSection) {
+        trainingSection.style.opacity = isPassed ? '1' : '0.5';
+    }
+}
+
+// Add event listener for checkbox
+document.getElementById('pass-checkbox').addEventListener('change', (e) => {
+    toggleInterviewFields(e.target.checked);
+});
 
 closeModal.onclick = () => {
     modal.classList.remove('active');
@@ -431,6 +505,11 @@ scheduleForm.onsubmit = async (e) => {
     const sessionData = JSON.parse(localStorage.getItem('recruit_session') || '{}');
     const assignedBranch = passStatus ? (sessionData.branch || '') : '';
 
+    if (!currentApplicant || !currentApplicant.id) {
+        alert('지원자 정보가 올바르지 않습니다. 다시 시도해 주세요.');
+        return;
+    }
+
     submitScheduleBtn.innerText = '저장 중...';
     submitScheduleBtn.disabled = true;
 
@@ -444,24 +523,45 @@ scheduleForm.onsubmit = async (e) => {
             assignedBranch: assignedBranch
         };
 
+        // GAS sometimes needs mode: 'cors' or a specific header to avoid preflight if JSON
+        // Using text/plain for the body prevents preflight OPTIONS request
         const response = await fetch(GAS_URL, {
             method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain'
+            },
             body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
+        if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        // Capture raw text first to handle cases where GAS returns non-JSON
+        const responseText = await response.text();
+        console.log('Raw Response from GAS:', responseText);
+
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (parseError) {
+            console.error('JSON Parse Error:', parseError);
+            throw new Error(`서버 응답이 올바른 형식이 아닙니다. (내용: ${responseText.substring(0, 50)}...)`);
+        }
 
         if (result.status === 'success') {
             alert('정보가 성공적으로 저장되었습니다!');
             modal.classList.remove('active');
-            setTimeout(() => init(), 1500);
+            document.body.classList.remove('modal-open');
+            // Increased delay to 3 seconds for better Google Sheets propagation
+            setTimeout(() => init(), 3000);
         } else {
             alert('저장 실패: ' + result.message);
         }
 
     } catch (error) {
         console.error('Update error:', error);
-        alert('저장 중 네트워크 오류가 발생했습니다.');
+        alert(`저장 중 네트워크 오류가 발생했습니다.\n(상세: ${error.message})`);
     } finally {
         submitScheduleBtn.innerText = '저장하기';
         submitScheduleBtn.disabled = false;

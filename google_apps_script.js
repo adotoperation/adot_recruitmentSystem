@@ -47,6 +47,9 @@ function doPost(e) {
             // V (column 22/index 21): Group Training Start Date
             sheet.getRange(rowIndex, 22).setValue(data.trainingStart || '');
 
+            // [추가 로직] 데이터 입력 직후 즉시 불합격자 정리 실행
+            cleanUpApplicantData();
+
             return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: '정보가 업데이트되었습니다.' }))
                 .setMimeType(ContentService.MimeType.JSON);
         } else {
@@ -57,5 +60,41 @@ function doPost(e) {
     } catch (error) {
         return ContentService.createTextOutput(JSON.stringify({ status: 'error', message: error.toString() }))
             .setMimeType(ContentService.MimeType.JSON);
+    }
+}
+
+/**
+ * S, T, U열을 일괄 정리하는 최적화 함수
+ * U열이 "불합"이고 T열이 비어있지 않을 때만 삭제
+ */
+function cleanUpApplicantData() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("지원자 DB");
+    if (!sheet) return;
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    // S(19), T(20), U(21) 열을 메모리로 가져옴
+    const range = sheet.getRange(2, 19, lastRow - 1, 3);
+    const data = range.getValues();
+    let isModified = false;
+
+    for (let i = 0; i < data.length; i++) {
+        const tValue = data[i][1];             // T열
+        const uValue = String(data[i][2]).trim(); // U열
+
+        // 조건: U열이 "불합"이고 T열이 비어있지 않을 때만 삭제
+        if (uValue === "불합" && tValue !== "") {
+            data[i][0] = ""; // S열 삭제 (지점명)
+            data[i][1] = ""; // T열 삭제 (면접일정)
+            data[i][2] = ""; // U열 삭제 (면접결과)
+            isModified = true;
+        }
+    }
+
+    // 변경사항이 있을 때만 단 한 번 시트에 덮어쓰기
+    if (isModified) {
+        range.setValues(data);
     }
 }
