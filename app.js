@@ -641,6 +641,7 @@ searchInput.addEventListener('input', (e) => {
             (app.assignedBranch && app.assignedBranch.toLowerCase().includes(term));
         return app.name.toLowerCase().includes(term) ||
             app.phone.includes(term) ||
+            app.address.toLowerCase().includes(term) ||
             branchMatch;
     });
     renderCards(filtered);
