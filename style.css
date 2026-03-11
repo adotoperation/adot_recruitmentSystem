@@ -363,9 +363,26 @@ body.modal-open {
 
 /* Responsive */
 @media (max-width: 900px) {
+  .modal-overlay {
+    padding: 10px;
+  }
+
   .modal-content {
     flex-direction: column;
     max-height: 95vh;
+    overflow-y: auto; /* Enable scrolling for the whole modal content */
+  }
+
+  .modal-sidebar {
+    flex: none; /* Sidebar no longer takes fixed width/flex */
+    width: 100%;
+    padding: 30px 20px;
+    overflow-y: visible; /* Disable independent scrolling */
+  }
+
+  .modal-main {
+    padding: 30px 20px;
+    overflow-y: visible; /* Disable independent scrolling */
   }
 
   .grid {
