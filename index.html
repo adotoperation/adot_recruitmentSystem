@@ -28,8 +28,13 @@
     </div>
     <style>
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
         }
     </style>
 
@@ -38,8 +43,10 @@
             <h1 class="brand">A•DOT <span style="font-weight: 700; color: #000;">리크루트 관리 시스템</span></h1>
             <p class="subtitle">모든 지원 현황을 한눈에 관리하세요</p>
             <div style="position: absolute; top: 20px; right: 20px; display: flex; align-items: center; gap: 15px;">
-                <span id="user-branch-display" style="font-weight: 700; color: #4a5568; font-size: 0.9rem; background: #edf2f7; padding: 6px 14px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.05);"></span>
-                <button id="logout-btn" style="padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); background: white; cursor: pointer; font-weight: 700; color: #4a5568; transition: all 0.2s;">로그아웃</button>
+                <span id="user-branch-display"
+                    style="font-weight: 700; color: #4a5568; font-size: 0.9rem; background: #edf2f7; padding: 6px 14px; border-radius: 10px; border: 1px solid rgba(0,0,0,0.05);"></span>
+                <button id="logout-btn"
+                    style="padding: 10px 20px; border-radius: 12px; border: 1px solid rgba(0,0,0,0.1); background: white; cursor: pointer; font-weight: 700; color: #4a5568; transition: all 0.2s;">로그아웃</button>
             </div>
         </header>
 
@@ -53,7 +60,8 @@
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 25px; padding: 0 10px;">
                     <span style="font-size: 1.5rem;">📝</span>
                     <h2 style="font-size: 1.5rem; font-weight: 900; color: #1a202c;">서류합격</h2>
-                    <span id="count-pass" style="background: var(--primary); color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 800;">0</span>
+                    <span id="count-pass"
+                        style="background: var(--primary); color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 800;">0</span>
                 </div>
                 <div id="grid-pass" class="grid"></div>
             </section>
@@ -63,7 +71,8 @@
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 25px; padding: 0 10px;">
                     <span style="font-size: 1.5rem;">✅</span>
                     <h2 style="font-size: 1.5rem; font-weight: 900; color: #276749;">집체교육 대기자</h2>
-                    <span id="count-finalized" style="background: #276749; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 800;">0</span>
+                    <span id="count-finalized"
+                        style="background: #276749; color: white; padding: 2px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 800;">0</span>
                 </div>
                 <div id="grid-finalized" class="grid"></div>
             </section>
@@ -73,7 +82,8 @@
                 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 25px; padding: 0 10px;">
                     <span style="font-size: 1.5rem;">👥</span>
                     <h2 style="font-size: 1.5rem; font-weight: 900; color: #1a202c;">지원자 정보</h2>
-                    <span id="count-all" style="background: #e2e8f0; color: #4a5568; padding: 2px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 800;">0</span>
+                    <span id="count-all"
+                        style="background: #e2e8f0; color: #4a5568; padding: 2px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 800;">0</span>
                 </div>
                 <div id="grid-all" class="grid"></div>
                 <div id="loading" class="loading" style="display: none;">지원 정보를 불러오는 중입니다...</div>
@@ -164,14 +174,16 @@
                     </div>
 
                     <div style="margin-bottom: 20px;">
-                        <span class="detail-label" style="font-size: 1rem; margin-bottom: 8px; color: #000; font-weight: 900;">강점 검사 결과</span>
+                        <span class="detail-label"
+                            style="font-size: 1rem; margin-bottom: 8px; color: #000; font-weight: 900;">강점 검사 결과</span>
                         <p id="modal-strengths"
                             style="font-size: 0.85rem; line-height: 1.6; color: var(--text-main); background: #fafafa; padding: 15px; border-radius: 12px; border: 1px solid #efefef;">
                             -</p>
                     </div>
 
                     <div style="margin-bottom: 30px;">
-                        <span class="detail-label" style="font-size: 1rem; margin-bottom: 8px; color: #000; font-weight: 900;">강사로서의 장점</span>
+                        <span class="detail-label"
+                            style="font-size: 1rem; margin-bottom: 8px; color: #000; font-weight: 900;">강사로서의 장점</span>
                         <p id="modal-vision"
                             style="font-size: 0.85rem; line-height: 1.6; color: var(--text-main); background: #fafafa; padding: 15px; border-radius: 12px; border: 1px solid #efefef;">
                             -</p>
@@ -204,38 +216,52 @@
                                 style="width: 24px; height: 24px; cursor: pointer; margin: 0;">
                             이 지원자를 서류 전형 합격으로 결정하시겠습니까?
                         </label>
-                        <div style="background: #fff5f5; border: 1px dashed #fcc; padding: 15px; border-radius: 10px; font-size: 0.85rem; color: #d63031; line-height: 1.6;">
+                        <div
+                            style="background: #fff5f5; border: 1px dashed #fcc; padding: 15px; border-radius: 10px; font-size: 0.75rem; color: #d63031; line-height: 1.6;">
                             <p style="margin: 0;">※ 서류 합격 처리 시, 지원자에게 연락하여 <b>면접 일정을 반드시 확정</b>해 주세요.</p>
+                            <p style="margin: 5px 0 0;">※ 서류 합격 저장 시, 지원자에게 면접 일정 안내 문자가 발송됩니다.</p>
                         </div>
                     </div>
 
                     <form id="schedule-form">
                         <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #eee;">
                             <label class="detail-label"
-                                style="display: block; margin-bottom: 12px; font-size: 0.85rem; font-weight: 700;">📅 면접 일정 확정</label>
+                                style="display: block; margin-bottom: 12px; font-size: 0.85rem; font-weight: 700;">📅 면접
+                                일정 확정</label>
                             <input type="datetime-local" id="interview-date"
                                 style="width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #d1d9e2; font-size: 1rem; color: #333; font-family: 'Inter', sans-serif;">
                         </div>
 
                         <div style="margin-bottom: 25px;">
-                            <label class="detail-label" style="display: block; margin-bottom: 15px; font-size: 0.9rem; font-weight: 800; color: var(--text-main);">🎤 이 지원자의 면접 결과를 입력해 주세요</label>
+                            <label class="detail-label"
+                                style="display: block; margin-bottom: 15px; font-size: 0.9rem; font-weight: 800; color: var(--text-main);">🎤
+                                이 지원자의 면접 결과를 입력해 주세요</label>
                             <div style="display: flex; gap: 20px; margin-bottom: 15px;">
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #007aff;">
-                                    <input type="radio" name="interview-result" value="합합" style="width: 20px; height: 20px; cursor: pointer;"> 면접 합격
+                                <label
+                                    style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #007aff;">
+                                    <input type="radio" name="interview-result" value="합합"
+                                        style="width: 20px; height: 20px; cursor: pointer;"> 면접 합격
                                 </label>
-                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #e53e3e;">
-                                    <input type="radio" name="interview-result" value="불합" style="width: 20px; height: 20px; cursor: pointer;"> 불합격
+                                <label
+                                    style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #e53e3e;">
+                                    <input type="radio" name="interview-result" value="불합"
+                                        style="width: 20px; height: 20px; cursor: pointer;"> 불합격
                                 </label>
                             </div>
-                            <div style="background: #fff5f5; border: 1px dashed #fcc; padding: 15px; border-radius: 10px; font-size: 0.85rem; color: #d63031; line-height: 1.6;">
+                            <div
+                                style="background: #fff5f5; border: 1px dashed #fcc; padding: 15px; border-radius: 10px; font-size: 0.75rem; color: #d63031; line-height: 1.6;">
                                 <p style="margin: 0;">※ 면접 종료 후 <b>48시간 이내</b>에 면접 결과와 집체 교육 시작일을 입력해야 합니다.</p>
                                 <p style="margin: 5px 0 0;">※ 48시간 이내 미입력 시, 타 지점에 기회가 돌아가게 됩니다.</p>
+                                <p style="margin: 5px 0 0;">※ 면접 합격 처리 시, 지원자에게 집체 교육 안내 문자가 발송됩니다.</p>
+                                <p style="margin: 5px 0 0;">※ 면접 합격 취소 시, 면접 불합격으로 저장하시면 됩니다.</p>
                             </div>
                         </div>
 
-                        <div id="training-section" style="margin-bottom: 25px; background: #f0f7ff; padding: 20px; border-radius: 15px; border: 1px solid #d0e7ff;">
+                        <div id="training-section"
+                            style="margin-bottom: 25px; background: #f0f7ff; padding: 20px; border-radius: 15px; border: 1px solid #d0e7ff;">
                             <label class="detail-label"
-                                style="display: block; margin-bottom: 8px; font-size: 0.85rem; font-weight: 700; color: #0056b3;">🚀 집체 교육 시작일 (합격 시 필수)</label>
+                                style="display: block; margin-bottom: 8px; font-size: 0.85rem; font-weight: 700; color: #0056b3;">🚀
+                                집체 교육 시작일 (합격 시 필수)</label>
                             <input type="date" id="training-date"
                                 style="width: 100%; padding: 15px; border-radius: 12px; border: 1px solid #b8d9ff; font-size: 1rem; color: #333; font-family: 'Inter', sans-serif; background: white;">
                         </div>

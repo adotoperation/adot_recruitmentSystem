@@ -31,11 +31,11 @@ function showToast(title, message, type = 'info') {
 
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    
+
     let icon = 'ℹ️';
-    if(type === 'success') icon = '✅';
-    if(type === 'warning') icon = '⚠️';
-    if(type === 'error') icon = '❌';
+    if (type === 'success') icon = '✅';
+    if (type === 'warning') icon = '⚠️';
+    if (type === 'error') icon = '❌';
 
     toast.innerHTML = `
         <div class="toast-icon">${icon}</div>
@@ -76,10 +76,10 @@ async function init() {
 
         const data = await response.text();
         allApplicants = parseCSV(data);
-        
+
         // Sorting: newest (descending) based on ID/Date
         allApplicants.sort((a, b) => b.id.localeCompare(a.id));
-        
+
         console.log('Successfully fetched and sorted', allApplicants.length, 'applicants.');
 
         // Fetch master branch list
@@ -310,8 +310,35 @@ function renderCards(applicants) {
     today.setHours(0, 0, 0, 0);
 
     applicants.forEach(app => {
+        // Find correct birth string (checking C column and H column)
+        let birthStr = app.birth;
+        if (app.branches && app.branches[2] && /\d/.test(app.branches[2])) {
+            birthStr = app.branches[2]; // fallback if user moved birth to H column
+        }
+
+        // Birth year filter: Only show if birth year is 1986 or later
+        if (birthStr && birthStr.length >= 2) {
+            let birthYear = 0;
+            const match4 = birthStr.match(/^(\d{4})/);
+            if (match4) {
+                birthYear = parseInt(match4[1], 10);
+            } else {
+                const match2 = birthStr.match(/^(\d{2})/);
+                if (match2) {
+                    let y2 = parseInt(match2[1], 10);
+                    // assuming 00-24 is 2000s, 25-99 is 1900s
+                    birthYear = y2 <= 24 ? 2000 + y2 : 1900 + y2;
+                }
+            }
+
+            // Filter OUT if birthYear is valid and <= 1985
+            if (birthYear > 0 && birthYear <= 1985) {
+                return;
+            }
+        }
+
         const isAssignedToMe = isMaster ? !!app.assignedBranch : (app.assignedBranch === myBranch);
-        
+
         if (isAssignedToMe) {
             if (app.trainingStart) {
                 // Hide if training date is in the past
@@ -348,7 +375,7 @@ function renderCards(applicants) {
 
         const row1Raw = applicant.branches.slice(0, 2);
         const row2Raw = applicant.branches.slice(2, 3);
-        
+
         const branchTagsRow1 = row1Raw.map((b, i) => `<span class="tag branch-tag">${i + 1}지망: ${b}</span>`).join('');
         const branchTagsRow2 = row2Raw.map((b, i) => `<span class="tag branch-tag">3지망: ${b}</span>`).join('');
 
@@ -446,14 +473,14 @@ function openDetail(applicant) {
         // Management states
         const passCheckbox = document.getElementById('pass-checkbox');
         passCheckbox.checked = applicant.status;
-        
+
         const interviewInput = document.getElementById('interview-date');
         const trainingInput = document.getElementById('training-date');
         const resultRadios = document.getElementsByName('interview-result');
-        
+
         if (interviewInput) interviewInput.value = formatForInput(applicant.schedule, 'datetime-local') || '';
         if (trainingInput) trainingInput.value = formatForInput(applicant.trainingStart, 'date') || '';
-        
+
         resultRadios.forEach(radio => {
             radio.checked = (radio.value === applicant.interviewResult);
         });
@@ -474,7 +501,7 @@ function toggleInterviewFields(isPassed, shouldClear = true) {
     const trainingInput = document.getElementById('training-date');
     const resultRadios = document.getElementsByName('interview-result');
     const sections = [interviewInput, trainingInput, ...resultRadios];
-    
+
     sections.forEach(el => {
         if (el) {
             el.disabled = !isPassed;
@@ -517,7 +544,7 @@ scheduleForm.onsubmit = async (e) => {
     const interviewValue = document.getElementById('interview-date').value;
     const trainingValue = document.getElementById('training-date').value;
     const passStatus = document.getElementById('pass-checkbox').checked;
-    
+
     const resultRadio = document.querySelector('input[name="interview-result"]:checked');
     const interviewResult = resultRadio ? resultRadio.value : '';
 
@@ -532,7 +559,7 @@ scheduleForm.onsubmit = async (e) => {
         showToast('입력 확인', '면접 합격 시, 집체 교육 시작일을 반드시 입력해야 합니다.', 'warning');
         return;
     }
-        
+
     // Get branch from session
     const sessionData = JSON.parse(localStorage.getItem('recruit_session') || '{}');
     const assignedBranch = passStatus ? (sessionData.branch || '') : '';
@@ -610,11 +637,11 @@ searchInput.addEventListener('input', (e) => {
         return;
     }
     const filtered = allApplicants.filter(app => {
-        const branchMatch = app.branches.some(b => b.toLowerCase().includes(term)) || 
-                          (app.assignedBranch && app.assignedBranch.toLowerCase().includes(term));
-        return app.name.toLowerCase().includes(term) || 
-               app.phone.includes(term) ||
-               branchMatch;
+        const branchMatch = app.branches.some(b => b.toLowerCase().includes(term)) ||
+            (app.assignedBranch && app.assignedBranch.toLowerCase().includes(term));
+        return app.name.toLowerCase().includes(term) ||
+            app.phone.includes(term) ||
+            branchMatch;
     });
     renderCards(filtered);
 });
