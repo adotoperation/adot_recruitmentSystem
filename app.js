@@ -659,3 +659,67 @@ searchInput.addEventListener('input', (e) => {
 });
 
 init();
+
+// Pull to Refresh Implementation
+(function() {
+    let startY = 0;
+    let currentY = 0;
+    let isPulling = false;
+    const threshold = 80;
+    const indicator = document.getElementById('pull-to-refresh-indicator');
+
+    window.addEventListener('touchstart', (e) => {
+        if (window.scrollY === 0) {
+            startY = e.touches[0].pageY;
+            isPulling = true;
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!isPulling) return;
+        currentY = e.touches[0].pageY;
+        let diff = currentY - startY;
+
+        if (diff > 0 && window.scrollY === 0) {
+            // Prevent browser's default pull-to-refresh if possible
+            if (diff > 10) {
+                // e.preventDefault(); // can't prevent if passive
+            }
+            let pullDistance = Math.min(diff * 0.4, threshold + 20);
+            indicator.style.transform = `translateY(${pullDistance}px)`;
+            indicator.style.opacity = Math.min(pullDistance / threshold, 1);
+        } else {
+            isPulling = false;
+        }
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+        if (!isPulling) return;
+        isPulling = false;
+        let diff = currentY - startY;
+        
+        if (diff >= threshold) {
+            // Trigger refresh
+            indicator.style.transform = `translateY(${threshold}px)`;
+            indicator.style.transition = 'transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+            
+            // Show toast and refresh
+            showToast('새로고침', '최신 데이터를 불러오는 중입니다...', 'info');
+            init().then(() => {
+                setTimeout(() => {
+                    indicator.style.transform = 'translateY(0px)';
+                    indicator.style.opacity = '0';
+                }, 500);
+            });
+        } else {
+            // Cancel
+            indicator.style.transform = 'translateY(0px)';
+            indicator.style.opacity = '0';
+        }
+        
+        // Reset transition after animation
+        setTimeout(() => {
+            indicator.style.transition = 'transform 0.2s ease';
+        }, 500);
+    });
+})();
