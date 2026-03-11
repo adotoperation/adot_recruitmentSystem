@@ -1,7 +1,32 @@
 /**
  * Google Apps Script for A-dot Instructor Scheduling Dashboard
- * v5: Ultra-Robust Matching (Timestamp + Phone/Name Fallback)
+ * v6: Ultra-Robust Duplicate Deletion
  */
+
+// --- Global Helper Functions ---
+const normalizeSimple = (s) => {
+  const digits = (s || "").toString().replace(/[^0-9]/g, "");
+  return digits.length >= 6 ? digits.slice(-6) : digits;
+};
+const getNameId = (s) => (s || "").toString().replace(/\s/g, "");
+
+const normalizeTimestamp = (s) => {
+  if (!s) return "";
+  let nums = s.toString().match(/\d+/g);
+  if (!nums || nums.length < 3) return s.toString().replace(/[^0-9]/g, "");
+  let y = nums[0]; if (y.length === 2) y = "20" + y;
+  let m = ("0" + nums[1]).slice(-2);
+  let d = ("0" + nums[2]).slice(-2);
+  let hh = ("0" + (nums[3] || 0)).slice(-2);
+  let mm = ("0" + (nums[4] || 0)).slice(-2);
+  let ss_ = ("0" + (nums[5] || 0)).slice(-2);
+  if (s.indexOf("오후") !== -1 || s.indexOf("PM") !== -1) {
+    let h = parseInt(hh); if (h < 12) hh = ("0" + (h + 12)).slice(-2);
+  } else if (s.indexOf("오전") !== -1 || s.indexOf("AM") !== -1) {
+    if (hh === "12") hh = "00";
+  }
+  return y + m + d + hh + mm + ss_;
+};
 
 function doPost(e) {
     try {
@@ -17,84 +42,44 @@ function doPost(e) {
         const rows = sheet.getDataRange().getValues();
         let rowIndex = -1;
 
-        // --- Standardized Normalization (v5) ---
-        const getUniversalId = (val) => {
-          if (!val) return '';
-          let d;
-          if (val instanceof Date) {
-            d = val;
-          } else {
-            let s = val.toString().trim();
-            // Handle Korean dates: "2026. 3. 6. 오후 2:24:34"
-            let nums = s.match(/\d+/g);
-            if (nums && nums.length >= 3) {
-              let y = parseInt(nums[0]);
-              if (y < 100) y += 2000;
-              let m = parseInt(nums[1]) - 1;
-              let day = parseInt(nums[2]);
-              let hh = parseInt(nums[3] || 0);
-              let mm = parseInt(nums[4] || 0);
-              let ss_ = parseInt(nums[5] || 0);
-              
-              if (s.indexOf('오후') !== -1 || s.indexOf('PM') !== -1) {
-                if (hh < 12) hh += 12;
-              } else if (s.indexOf('오전') !== -1 || s.indexOf('AM') !== -1) {
-                if (hh === 12) hh = 0;
-              }
-              d = new Date(y, m, day, hh, mm, ss_);
-            } else {
-              d = new Date(s);
-            }
-          }
-          
-          if (d && !isNaN(d.getTime())) {
-            return Utilities.formatDate(d, ss.getSpreadsheetTimeZone(), "yyyyMMddHHmmss");
-          }
-          return val.toString().replace(/[^0-9]/g, '');
-        };
 
-        const getNumericPhone = (p) => p ? p.toString().replace(/[^0-9]/g, '') : '';
+        const targetName = getNameId(data.name);
+        const targetBirth = normalizeSimple(data.birth);
 
-        const targetId = getUniversalId(data.id);
-        const targetPhone = getNumericPhone(data.phone);
-        const targetName = (data.name || '').toString().trim();
+        const displayRows = sheet.getDataRange().getDisplayValues();
+        let matchingIndices = [];
 
-        for (let i = 1; i < rows.length; i++) {
-            const rowArr = rows[i];
-            const rowId = getUniversalId(rowArr[0]);
-            const rowName = (rowArr[1] || '').toString().trim();
-            const rowPhone = getNumericPhone(rowArr[8]);
+        for (let i = 1; i < displayRows.length; i++) {
+            const row = displayRows[i];
+            const rowName = getNameId(row[1]);
+            const rowBirth = normalizeSimple(row[2]);
 
-            // Attempt 1: ID Match
-            if (rowId === targetId && targetId !== '') {
-                rowIndex = i + 1;
-                break;
-            }
-
-            // Attempt 2: Phone + Name Match (Fallback)
-            if (targetPhone !== '' && rowPhone === targetPhone) {
-                if (targetName === '' || rowName.indexOf(targetName) !== -1) {
-                    rowIndex = i + 1;
-                    break;
-                }
+            // Match ONLY by Name + Birth Date
+            if (targetName && targetBirth && rowName === targetName && rowBirth === targetBirth) {
+                matchingIndices.push(i + 1);
             }
         }
 
-        if (rowIndex > 0) {
-            sheet.getRange(rowIndex, 19).setValue((data.status && data.assignedBranch) ? data.assignedBranch : ''); 
-            sheet.getRange(rowIndex, 20).setValue(data.interviewSchedule || ''); 
-            sheet.getRange(rowIndex, 21).setValue(data.interviewResult || '');   
-            sheet.getRange(rowIndex, 22).setValue(data.trainingStart || '');      
+        if (matchingIndices.length > 0) {
+            matchingIndices.forEach(idx => {
+                // S: Status/Branch, T: Schedule, U: Result, V: Training
+                sheet.getRange(idx, 19).setValue((data.status && data.assignedBranch) ? data.assignedBranch : ''); 
+                sheet.getRange(idx, 20).setValue(data.interviewSchedule || ''); 
+                sheet.getRange(idx, 21).setValue(data.interviewResult || '');   
+                sheet.getRange(idx, 22).setValue(data.trainingStart || '');
+            });
 
             cleanUpApplicantData();
 
-            return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: '정보가 저장되었습니다.' }))
-                .setMimeType(ContentService.MimeType.JSON);
+            return ContentService.createTextOutput(JSON.stringify({ 
+                status: 'success', 
+                message: matchingIndices.length + '개의 동일 데이터가 모두 업데이트되었습니다.'
+            })).setMimeType(ContentService.MimeType.JSON);
         } else {
-            const sample = rows.length > 1 ? `[성함:${rows[1][1]}, 연락처:${rows[1][8]}, 변환ID:${getUniversalId(rows[1][0])}]` : '데이터 없음';
+            const sample = displayRows.length > 1 ? `[성함:${displayRows[1][1]}, 생일:${displayRows[1][2]}]` : '데이터 없음';
             return ContentService.createTextOutput(JSON.stringify({ 
                 status: 'error', 
-                message: '지원자를 찾을 수 없습니다.\n\n[진단]\n- 앱 이름: ' + targetName + '\n- 앱 전화: ' + targetPhone + '\n- 앱 변환 ID: ' + targetId + '\n- 시트 샘플: ' + sample
+                message: '지원자를 찾을 수 없습니다.\n\n[진단]\n- 찾는 이름: ' + targetName + '\n- 찾는 생일(6자리): ' + targetBirth + '\n- 시트 샘플: ' + sample
             })).setMimeType(ContentService.MimeType.JSON);
         }
 
@@ -133,12 +118,12 @@ function testMatch() {
   if (rows.length > 1) {
     const sheetId = rows[1][0];
     const appIdFromUser = "2026. 3. 6. 오후 2:24:34"; 
-    Logger.log('--- v5 테스트 ---');
+    Logger.log('--- v6 테스트 ---');
     Logger.log('시트 원본: ' + sheetId);
-    Logger.log('시트 변환: ' + getUniversalId(sheetId));
+    Logger.log('시트 변환: ' + normalizeTimestamp(sheetId));
     Logger.log('앱 전송 원본: ' + appIdFromUser);
-    Logger.log('앱 전송 변환: ' + getUniversalId(appIdFromUser));
-    Logger.log('결과: ' + (getUniversalId(sheetId) === getUniversalId(appIdFromUser)));
+    Logger.log('앱 전송 변환: ' + normalizeTimestamp(appIdFromUser));
+    Logger.log('결과: ' + (normalizeTimestamp(sheetId) === normalizeTimestamp(appIdFromUser)));
   }
 }
 

@@ -77,10 +77,35 @@ async function init() {
         const data = await response.text();
         allApplicants = parseCSV(data);
 
-        // Sorting: newest (descending) based on ID/Date
-        allApplicants.sort((a, b) => b.id.localeCompare(a.id));
+        // Sorting: newest (descending) based on normalized ID/Date
+        allApplicants.sort((a, b) => {
+            return getSortableId(b.id).localeCompare(getSortableId(a.id));
+        });
 
-        console.log('Successfully fetched and sorted', allApplicants.length, 'applicants.');
+        // Filtering & Deduplication
+        const seen = new Map();
+        const deduplicated = [];
+        allApplicants.forEach(app => {
+            const cleanName = app.name.replace(/\s/g, '');
+            const cleanBirth = app.birth.replace(/[^0-9]/g, '').slice(-6);
+
+            // Filter: Name must not contain English and must be 4 chars or less
+            const hasEnglish = /[a-zA-Z]/.test(cleanName);
+            const isTooLong = cleanName.length > 4;
+            
+            if (hasEnglish || isTooLong) {
+                return; // Skip this applicant
+            }
+
+            const key = `${cleanName}_${cleanBirth}`;
+            if (!seen.has(key)) {
+                seen.set(key, true);
+                deduplicated.push(app);
+            }
+        });
+        allApplicants = deduplicated;
+
+        console.log('Successfully fetched, sorted, and deduplicated', allApplicants.length, 'applicants.');
 
         // Fetch master branch list
         await fetchBranches();
@@ -159,6 +184,33 @@ function parseCSV(csv) {
 
     // Skip header row
     return result.slice(1);
+}
+
+// Helper to get a sortable string from timestamp (Column A)
+function getSortableId(s) {
+    if (!s) return "";
+    let nums = s.match(/\d+/g);
+    // If not a standard-looking date string, return digits only
+    if (!nums || nums.length < 3) return s.replace(/[^0-9]/g, "");
+    
+    let y = nums[0]; 
+    if (y.length === 2) y = "20" + y;
+    
+    let m = nums[1].padStart(2, '0');
+    let d = nums[2].padStart(2, '0');
+    let hh = (nums[3] || "0").padStart(2, '0');
+    let mm = (nums[4] || "0").padStart(2, '0');
+    let ss = (nums[5] || "0").padStart(2, '0');
+    
+    // Handle Korean 오전/오후 (AM/PM)
+    if (s.includes("오후") || s.includes("PM")) {
+        let h = parseInt(hh);
+        if (h < 12) hh = String(h + 12).padStart(2, '0');
+    } else if (s.includes("오전") || s.includes("AM")) {
+        if (hh === "12") hh = "00";
+    }
+    
+    return y + m + d + hh + mm + ss;
 }
 
 // Helper to map fields to object (extracted for cleaner parseCSV)
@@ -587,6 +639,7 @@ scheduleForm.onsubmit = async (e) => {
         const payload = {
             id: currentApplicant.id,
             name: currentApplicant.name,
+            birth: currentApplicant.birth,
             phone: currentApplicant.phone,
             interviewSchedule: interviewValue,
             trainingStart: trainingValue,
