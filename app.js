@@ -469,6 +469,17 @@ function openDetail(applicant) {
         document.getElementById('modal-strengths').innerText = applicant.strengths || '-';
         document.getElementById('modal-vision').innerText = applicant.vision || '-';
         document.getElementById('modal-phone').innerText = applicant.phone || '-';
+        
+        const callBtn = document.getElementById('modal-phone-call');
+        if (callBtn) {
+            if (applicant.phone) {
+                const purePhone = applicant.phone.replace(/[^0-9]/g, '');
+                callBtn.href = `tel:${purePhone}`;
+                callBtn.style.display = 'flex';
+            } else {
+                callBtn.style.display = 'none';
+            }
+        }
 
         // Management states
         const passCheckbox = document.getElementById('pass-checkbox');

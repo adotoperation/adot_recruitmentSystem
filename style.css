@@ -337,6 +337,30 @@ body.modal-open {
   transform: rotate(90deg);
 }
 
+.call-btn {
+  width: 44px;
+  height: 44px;
+  background: white;
+  color: var(--primary);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+}
+
+.call-btn:hover {
+  transform: scale(1.1) rotate(-10deg);
+  background: var(--primary);
+  color: white;
+}
+
+.call-btn:active {
+  transform: scale(0.95);
+}
+
 @keyframes fadeInDown {
   from {
     opacity: 0;
